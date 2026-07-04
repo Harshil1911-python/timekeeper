@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Timekeeper — Logbook</title>
+<title>Serenia Timekeeper — Logbook</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
@@ -17,7 +17,10 @@
   <nav class="rail">
     <div class="rail-brand">
       <span class="rail-brand-mark">◍</span>
-      <span class="rail-brand-name">TIMEKEEPER</span>
+      <span class="rail-brand-lockup">
+        <span class="rail-brand-name">SERENIA</span>
+        <span class="rail-brand-sub">TIMEKEEPER</span>
+      </span>
     </div>
 
     <div class="rail-switches">
@@ -26,6 +29,9 @@
       </button>
       <button class="switch" data-view="log">
         <span class="switch-dot"></span> Hour Log
+      </button>
+      <button class="switch" data-view="inbox">
+        <span class="switch-dot"></span> Inbox
       </button>
       <button class="switch" data-view="tasks">
         <span class="switch-dot"></span> Tasks
@@ -115,6 +121,19 @@
       <p class="deck-sub">Record what actually happened, one hour at a time. This is the ledger everything else is measured against.</p>
 
       <div class="ledger" id="ledger"><!-- built by JS --></div>
+    </section>
+
+    <!-- ---------------- INBOX ---------------- -->
+    <section class="view" id="view-inbox">
+      <h1 class="deck-title">Inbox</h1>
+      <p class="deck-sub">Everything open, from every day, in one place. For each item: do it, defer it to another day, delegate it to someone, or delete it.</p>
+
+      <form class="task-form" id="inboxForm">
+        <input type="text" id="inboxTitle" placeholder="Capture a task…" required>
+        <button type="submit" class="btn-primary">Add to inbox</button>
+      </form>
+
+      <div class="inbox-list" id="inboxList"></div>
     </section>
 
     <!-- ---------------- TASKS ---------------- -->

@@ -57,7 +57,7 @@ function switchView(view) {
   document.querySelectorAll(".switch").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + view));
 
-  const dateless = ["schedule", "recurring", "notes"];
+  const dateless = ["schedule", "recurring", "notes", "inbox"];
   document.getElementById("dateNav").style.display = dateless.includes(view) ? "none" : "flex";
 
   loadView(view);
@@ -66,6 +66,7 @@ function switchView(view) {
 function loadView(view) {
   if (view === "dashboard") return loadDashboard();
   if (view === "log") return loadLedger();
+  if (view === "inbox") return loadInbox();
   if (view === "tasks") return loadTasks();
   if (view === "schedule") return loadSchedule();
   if (view === "recurring") return loadRecurring();
@@ -248,6 +249,95 @@ async function loadLedger() {
 
     ledger.appendChild(row);
   }
+}
+
+/* ==========================================================
+   INBOX — task triage: do / defer / delegate / delete
+   ========================================================== */
+async function loadInbox() {
+  const tasks = await apiGet("/inbox");
+  const list = document.getElementById("inboxList");
+  list.innerHTML = "";
+
+  if (!tasks.length) {
+    list.innerHTML = '<div style="color:#7C8896;font-size:13px;">Inbox is empty — nothing open right now.</div>';
+    return;
+  }
+
+  tasks.forEach((t) => {
+    const item = document.createElement("div");
+    item.className = "inbox-item";
+    item.innerHTML = `
+      <div class="inbox-item-top">
+        <span class="inbox-item-title">${escapeHtml(t.title)}</span>
+        <span class="inbox-badge badge-date">${t.task_date}</span>
+        ${t.is_important ? '<span class="inbox-badge badge-important">Important</span>' : ""}
+        ${t.is_urgent ? '<span class="inbox-badge badge-urgent">Urgent</span>' : ""}
+        ${t.delegated_to ? `<span class="inbox-badge badge-delegated">→ ${escapeHtml(t.delegated_to)}</span>` : ""}
+      </div>
+      <div class="inbox-actions">
+        <button class="act-do">✓ Do it</button>
+        <button class="act-defer">⏭ Defer</button>
+        <button class="act-delegate">↪ Delegate</button>
+        <button class="act-delete">✕ Delete</button>
+      </div>
+      <div class="inbox-inline" data-role="defer">
+        <input type="date" value="${t.task_date}">
+        <button class="btn-primary confirm-defer">Move</button>
+      </div>
+      <div class="inbox-inline" data-role="delegate">
+        <input type="text" placeholder="Delegate to…" value="${t.delegated_to || ""}">
+        <button class="btn-primary confirm-delegate">Assign</button>
+      </div>
+    `;
+
+    item.querySelector(".act-do").addEventListener("click", async () => {
+      await apiPut(`/tasks/${t.id}`, { is_completed: true });
+      loadInbox();
+    });
+
+    item.querySelector(".act-delete").addEventListener("click", async () => {
+      await apiDelete(`/tasks/${t.id}`);
+      loadInbox();
+    });
+
+    const deferPanel = item.querySelector('[data-role="defer"]');
+    const delegatePanel = item.querySelector('[data-role="delegate"]');
+
+    item.querySelector(".act-defer").addEventListener("click", () => {
+      deferPanel.classList.toggle("open");
+      delegatePanel.classList.remove("open");
+    });
+    item.querySelector(".act-delegate").addEventListener("click", () => {
+      delegatePanel.classList.toggle("open");
+      deferPanel.classList.remove("open");
+    });
+
+    item.querySelector(".confirm-defer").addEventListener("click", async () => {
+      const newDate = deferPanel.querySelector("input").value;
+      if (!newDate) return;
+      await apiPost(`/tasks/${t.id}/defer`, { task_date: newDate });
+      loadInbox();
+    });
+    item.querySelector(".confirm-delegate").addEventListener("click", async () => {
+      const to = delegatePanel.querySelector("input").value.trim();
+      await apiPost(`/tasks/${t.id}/delegate`, { delegated_to: to });
+      loadInbox();
+    });
+
+    list.appendChild(item);
+  });
+}
+
+function initInboxForm() {
+  document.getElementById("inboxForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = document.getElementById("inboxTitle").value.trim();
+    if (!title) return;
+    await apiPost("/tasks", { title, task_date: new Date().toISOString().slice(0, 10) });
+    document.getElementById("inboxForm").reset();
+    loadInbox();
+  });
 }
 
 /* ==========================================================
@@ -536,6 +626,7 @@ function escapeHtml(str) {
 document.addEventListener("DOMContentLoaded", () => {
   initNav();
   initDateNav();
+  initInboxForm();
   initTaskForm();
   initRecurringForm();
   initDistractionForm();

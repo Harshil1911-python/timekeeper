@@ -15,6 +15,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 # ------------------------------------------------------------------ #
 # Static frontend
@@ -22,12 +23,14 @@ app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 
 @app.route("/")
 def index():
-    return send_from_directory(FRONTEND_DIR, "index.html")
+    resp = send_from_directory(FRONTEND_DIR, "index.html")
+    resp.cache_control.no_cache = True
+    return resp
 
-
-@app.route("/<path:path>")
-def static_proxy(path):
-    return send_from_directory(FRONTEND_DIR, path)
+# NOTE: static assets (css/js) are served automatically by Flask's built-in
+# static handler because the app was created with static_folder=FRONTEND_DIR
+# and static_url_path="". A second catch-all route used to exist here too and
+# duplicated that handling — removing it avoids ambiguous route matching.
 
 
 # ------------------------------------------------------------------ #
@@ -222,6 +225,57 @@ def update_task(task_id):
     conn.commit()
     row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     recompute_daily_rating(conn, row["task_date"])
+    conn.close()
+    return jsonify(row_to_dict(row))
+
+
+@app.route("/api/inbox", methods=["GET"])
+def get_inbox():
+    """All open (not-completed) tasks across every date — the triage list."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM tasks WHERE is_completed = 0 ORDER BY task_date, id"
+    ).fetchall()
+    conn.close()
+    return jsonify(rows_to_list(rows))
+
+
+@app.route("/api/tasks/<int:task_id>/defer", methods=["POST"])
+def defer_task(task_id):
+    """Shift a task to a different day (and/or leave a note on why)."""
+    data = request.get_json(force=True)
+    new_date = data["task_date"]
+    conn = get_connection()
+    existing = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    old_date = existing["task_date"]
+    conn.execute("UPDATE tasks SET task_date = ? WHERE id = ?", (new_date, task_id))
+    conn.commit()
+    recompute_daily_rating(conn, old_date)
+    recompute_daily_rating(conn, new_date)
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    conn.close()
+    return jsonify(row_to_dict(row))
+
+
+@app.route("/api/tasks/<int:task_id>/delegate", methods=["POST"])
+def delegate_task(task_id):
+    """Hand a task off to someone else. Send delegated_to: "" to un-delegate."""
+    data = request.get_json(force=True)
+    to_person = (data.get("delegated_to") or "").strip()
+    conn = get_connection()
+    existing = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    conn.execute(
+        "UPDATE tasks SET delegated_to = ? WHERE id = ?",
+        (to_person or None, task_id),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     conn.close()
     return jsonify(row_to_dict(row))
 

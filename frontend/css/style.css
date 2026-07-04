@@ -79,14 +79,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 .rail-brand-mark{
   color: var(--brass);
-  font-size:20px;
+  font-size:22px;
+  line-height:1;
+}
+.rail-brand-lockup{
+  display:flex;
+  flex-direction:column;
+  line-height:1.15;
 }
 .rail-brand-name{
   font-family: var(--font-display);
   font-weight:700;
-  letter-spacing:0.14em;
-  font-size:13px;
+  letter-spacing:0.12em;
+  font-size:13.5px;
   color: var(--text-hi);
+}
+.rail-brand-sub{
+  font-family: var(--font-mono);
+  font-weight:500;
+  letter-spacing:0.16em;
+  font-size:9.5px;
+  color: var(--brass);
 }
 
 .rail-switches{
@@ -344,6 +357,79 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background: var(--alert-dim);
   border-color: var(--alert);
   color: var(--text-hi);
+}
+
+/* ==========================================================
+   INBOX (task triage: do / defer / delegate / delete)
+   ========================================================== */
+.inbox-list{ display:flex; flex-direction:column; gap:8px; }
+.inbox-item{
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding:12px 14px;
+}
+.inbox-item-top{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.inbox-item-title{
+  flex:1;
+  color: var(--text-hi);
+  font-size:14px;
+  min-width:160px;
+}
+.inbox-badge{
+  font-family: var(--font-mono);
+  font-size:10px;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+  padding:3px 7px;
+  border-radius:3px;
+  color: var(--text-hi);
+}
+.badge-date{ background: var(--panel-raised); color: var(--text-dim); border:1px solid var(--line); }
+.badge-important{ background: rgba(108,142,191,0.25); border:1px solid var(--blue); }
+.badge-urgent{ background: rgba(204,158,79,0.25); border:1px solid var(--brass); }
+.badge-delegated{ background: rgba(79,166,158,0.25); border:1px solid var(--teal); }
+
+.inbox-actions{
+  display:flex;
+  gap:6px;
+  margin-top:10px;
+  flex-wrap:wrap;
+}
+.inbox-actions button{
+  background: var(--panel-raised);
+  border:1px solid var(--line);
+  color: var(--text-hi);
+  border-radius:4px;
+  padding:6px 11px;
+  cursor:pointer;
+  font-size:12px;
+}
+.inbox-actions button:hover{ background: var(--line); }
+.inbox-actions button.act-do:hover{ border-color: var(--teal); color: var(--teal); }
+.inbox-actions button.act-delete:hover{ border-color: var(--alert); color: var(--alert); }
+
+.inbox-inline{
+  display:none;
+  gap:8px;
+  margin-top:10px;
+  align-items:center;
+}
+.inbox-inline.open{ display:flex; }
+.inbox-inline input{
+  background: var(--panel-raised);
+  border:1px solid var(--line);
+  color: var(--text-hi);
+  border-radius:4px;
+  padding:7px 10px;
+  font-size:12.5px;
+  flex:1;
+  min-width:120px;
 }
 
 /* ==========================================================

@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     is_urgent    INTEGER NOT NULL DEFAULT 0,
     is_completed INTEGER NOT NULL DEFAULT 0,
     completed_at TEXT,
+    delegated_to TEXT,                         -- name of person a task was delegated to
     created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
