@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timekeeper — Logbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="hull">
+
+  <!-- ============ LEFT RAIL ============ -->
+  <nav class="rail">
+    <div class="rail-brand">
+      <span class="rail-brand-mark">◍</span>
+      <span class="rail-brand-name">TIMEKEEPER</span>
+    </div>
+
+    <div class="rail-switches">
+      <button class="switch active" data-view="dashboard">
+        <span class="switch-dot"></span> Dashboard
+      </button>
+      <button class="switch" data-view="log">
+        <span class="switch-dot"></span> Hour Log
+      </button>
+      <button class="switch" data-view="tasks">
+        <span class="switch-dot"></span> Tasks
+      </button>
+      <button class="switch" data-view="schedule">
+        <span class="switch-dot"></span> Schedule
+      </button>
+      <button class="switch" data-view="recurring">
+        <span class="switch-dot"></span> Recurring
+      </button>
+      <button class="switch" data-view="distractions">
+        <span class="switch-dot"></span> Distractions
+      </button>
+      <button class="switch" data-view="notes">
+        <span class="switch-dot"></span> Notebook
+      </button>
+    </div>
+
+    <div class="rail-footer">
+      <div class="rail-clock" id="railClock">--:--</div>
+      <div class="rail-date" id="railDate">—</div>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main class="deck">
+
+    <!-- shared date navigator, hidden on notebook/schedule -->
+    <header class="deck-header" id="dateNav">
+      <button class="dnav-btn" id="prevDay">‹</button>
+      <div class="dnav-current">
+        <span class="dnav-label">ENTRY DATE</span>
+        <input type="date" id="activeDate" class="dnav-date">
+      </div>
+      <button class="dnav-btn" id="nextDay">›</button>
+      <button class="dnav-today" id="gotoToday">Today</button>
+    </header>
+
+    <!-- ---------------- DASHBOARD ---------------- -->
+    <section class="view active" id="view-dashboard">
+      <h1 class="deck-title">Daily Performance</h1>
+      <p class="deck-sub">A read-out of how the day actually went, against how it was planned.</p>
+
+      <div class="gauge-row">
+        <div class="gauge-card">
+          <div class="gauge-label">Effectiveness Ratio</div>
+          <div class="gauge-value" id="effRatio">—</div>
+          <div class="gauge-note">important &amp; urgent ÷ all completed tasks</div>
+        </div>
+        <div class="gauge-card">
+          <div class="gauge-label">Hours Logged</div>
+          <div class="gauge-value" id="hoursLogged">—</div>
+          <div class="gauge-note">of 24 hours accounted for</div>
+        </div>
+        <div class="gauge-card">
+          <div class="gauge-label">Tasks Completed</div>
+          <div class="gauge-value" id="tasksCompleted">—</div>
+          <div class="gauge-note">marked done today</div>
+        </div>
+        <div class="gauge-card">
+          <div class="gauge-label">Self Rating</div>
+          <div class="gauge-value" id="selfRatingDisplay">—</div>
+          <div class="gauge-note" id="ratingStars">tap to rate</div>
+        </div>
+      </div>
+
+      <div class="panel-row">
+        <div class="panel chart-panel">
+          <div class="panel-head">Where the hours went — today</div>
+          <canvas id="categoryChart" height="220"></canvas>
+        </div>
+        <div class="panel chart-panel">
+          <div class="panel-head">Effectiveness — last 7 days</div>
+          <canvas id="weekEffChart" height="220"></canvas>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">Hours logged &amp; tasks done — last 7 days</div>
+        <canvas id="weekHoursChart" height="180"></canvas>
+      </div>
+    </section>
+
+    <!-- ---------------- HOUR LOG ---------------- -->
+    <section class="view" id="view-log">
+      <h1 class="deck-title">Hour-by-Hour Log</h1>
+      <p class="deck-sub">Record what actually happened, one hour at a time. This is the ledger everything else is measured against.</p>
+
+      <div class="ledger" id="ledger"><!-- built by JS --></div>
+    </section>
+
+    <!-- ---------------- TASKS ---------------- -->
+    <section class="view" id="view-tasks">
+      <h1 class="deck-title">Tasks</h1>
+      <p class="deck-sub">Flag each task Important and/or Urgent. Completing important-and-urgent work is what drives your effectiveness ratio.</p>
+
+      <form class="task-form" id="taskForm">
+        <input type="text" id="taskTitle" placeholder="Task title" required>
+        <label class="flag-check flag-important"><input type="checkbox" id="taskImportant"> Important</label>
+        <label class="flag-check flag-urgent"><input type="checkbox" id="taskUrgent"> Urgent</label>
+        <button type="submit" class="btn-primary">Add task</button>
+      </form>
+
+      <div class="matrix" id="taskMatrix">
+        <div class="matrix-quad" data-quad="both">
+          <div class="quad-head quad-both">Important &amp; Urgent</div>
+          <div class="quad-list" id="quad-both"></div>
+        </div>
+        <div class="matrix-quad" data-quad="important">
+          <div class="quad-head quad-important">Important only</div>
+          <div class="quad-list" id="quad-important"></div>
+        </div>
+        <div class="matrix-quad" data-quad="urgent">
+          <div class="quad-head quad-urgent">Urgent only</div>
+          <div class="quad-list" id="quad-urgent"></div>
+        </div>
+        <div class="matrix-quad" data-quad="neither">
+          <div class="quad-head quad-neither">Neither</div>
+          <div class="quad-list" id="quad-neither"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------------- SCHEDULE ---------------- -->
+    <section class="view" id="view-schedule">
+      <h1 class="deck-title">Weekly Schedule</h1>
+      <p class="deck-sub">Block your week ahead of time. Click an empty cell to reserve it, click a filled cell to clear it.</p>
+
+      <div class="sched-toolbar">
+        <input type="text" id="blockTitle" placeholder="Block name, e.g. Deep Work">
+        <select id="blockCategory">
+          <option value="work">Work</option>
+          <option value="personal">Personal</option>
+          <option value="rest">Rest</option>
+          <option value="learning">Learning</option>
+          <option value="admin">Admin</option>
+        </select>
+        <span class="sched-hint">Choose a name + category, then click cells to paint them.</span>
+      </div>
+
+      <div class="sched-grid-wrap">
+        <div class="sched-grid" id="schedGrid"><!-- built by JS --></div>
+      </div>
+    </section>
+
+    <!-- ---------------- RECURRING ---------------- -->
+    <section class="view" id="view-recurring">
+      <h1 class="deck-title">Recurring Tasks</h1>
+      <p class="deck-sub">Tasks you repeat every week — either declared by you, or spotted automatically across past weeks.</p>
+
+      <form class="task-form" id="recurringForm">
+        <input type="text" id="recurringTitle" placeholder="Recurring task title" required>
+        <button type="submit" class="btn-primary">Add to recurring list</button>
+        <button type="button" class="btn-secondary" id="detectBtn">Scan past weeks</button>
+      </form>
+
+      <div class="rec-columns">
+        <div class="rec-col">
+          <div class="rec-col-head">Declared by you</div>
+          <div id="recUser" class="rec-list"></div>
+        </div>
+        <div class="rec-col">
+          <div class="rec-col-head">Detected from history</div>
+          <div id="recAuto" class="rec-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------------- DISTRACTIONS ---------------- -->
+    <section class="view" id="view-distractions">
+      <h1 class="deck-title">Distraction Budget</h1>
+      <p class="deck-sub">Give each distraction a time cap for the day, then track how much of it actually got used.</p>
+
+      <form class="task-form" id="distractionForm">
+        <input type="text" id="distName" placeholder="e.g. Social media" required>
+        <input type="number" id="distAllotted" placeholder="Minutes allowed" min="1" value="30" required>
+        <button type="submit" class="btn-primary">Set budget</button>
+      </form>
+
+      <div class="dist-list" id="distList"></div>
+    </section>
+
+    <!-- ---------------- NOTEBOOK ---------------- -->
+    <section class="view" id="view-notes">
+      <h1 class="deck-title">Notebook</h1>
+      <p class="deck-sub">Jot anything down. Notes sync with the rest of the logbook automatically.</p>
+
+      <div class="notebook">
+        <div class="note-list" id="noteList">
+          <button class="btn-primary note-new" id="newNoteBtn">+ New note</button>
+        </div>
+        <div class="note-editor">
+          <input type="text" id="noteTitle" placeholder="Untitled" class="note-title-input">
+          <input type="text" id="noteTags" placeholder="tags, comma, separated" class="note-tags-input">
+          <textarea id="noteContent" placeholder="Start writing…" class="note-content-input"></textarea>
+          <div class="note-actions">
+            <button class="btn-primary" id="saveNoteBtn">Save note</button>
+            <button class="btn-danger" id="deleteNoteBtn">Delete</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
