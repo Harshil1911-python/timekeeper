@@ -17,6 +17,12 @@ FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
+# Initialize the database unconditionally at import time. This must NOT be
+# inside `if __name__ == "__main__":` — that block never runs when a WSGI
+# server like gunicorn imports and serves `app:app` directly, which was
+# silently leaving the database uncreated in production.
+init_db()
+
 # ------------------------------------------------------------------ #
 # Static frontend
 # ------------------------------------------------------------------ #
@@ -632,5 +638,4 @@ def dashboard_week():
 
 
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True, port=5000)
