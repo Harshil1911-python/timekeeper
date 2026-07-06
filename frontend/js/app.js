@@ -9,7 +9,13 @@ const state = {
   activeView: "dashboard",
   activeNoteId: null,
   charts: {},
+  focus: { seconds: 25 * 60, totalSeconds: 25 * 60, running: false, timer: null },
+  calendar: { monthDate: new Date(), selectedDate: new Date().toISOString().slice(0, 10), clipboard: null },
 };
+
+function chartsAvailable() {
+  return typeof Chart !== "undefined";
+}
 
 const CATEGORY_COLORS = {
   work: "#6C8EBF",
@@ -57,7 +63,7 @@ function switchView(view) {
   document.querySelectorAll(".switch").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + view));
 
-  const dateless = ["schedule", "recurring", "notes", "inbox"];
+  const dateless = ["schedule", "recurring", "notes", "inbox", "calendar"];
   document.getElementById("dateNav").style.display = dateless.includes(view) ? "none" : "flex";
 
   loadView(view);
@@ -67,6 +73,9 @@ function loadView(view) {
   if (view === "dashboard") return loadDashboard();
   if (view === "log") return loadLedger();
   if (view === "inbox") return loadInbox();
+  if (view === "habits") return loadHabits();
+  if (view === "focus") return loadFocus();
+  if (view === "calendar") return loadCalendar();
   if (view === "tasks") return loadTasks();
   if (view === "schedule") return loadSchedule();
   if (view === "recurring") return loadRecurring();
@@ -117,6 +126,10 @@ async function loadDashboard() {
   document.getElementById("effRatio").textContent = Math.round((day.rating?.effective_ratio || 0) * 100) + "%";
   document.getElementById("hoursLogged").textContent = day.hours_logged + " / 24";
   document.getElementById("tasksCompleted").textContent = day.tasks.filter((t) => t.is_completed).length;
+  document.getElementById("plannedActual").textContent = `${day.hours_logged} / ${day.planned_hours}h`;
+  document.getElementById("focusTime").textContent = day.focus_minutes + " min";
+  document.getElementById("focusNote").textContent = day.focus_sessions + " session" + (day.focus_sessions === 1 ? "" : "s");
+  document.getElementById("habitsDone").textContent = `${day.habits_done} / ${day.habits_total}`;
 
   const rating = day.rating?.rating;
   document.getElementById("selfRatingDisplay").textContent = rating ? "★".repeat(rating) + "☆".repeat(5 - rating) : "—";
@@ -130,8 +143,29 @@ async function loadDashboard() {
     }
   };
 
-  renderCategoryChart(day.category_breakdown);
-  renderWeekCharts(week.daily);
+  if (chartsAvailable()) {
+    renderCategoryChart(day.category_breakdown);
+    renderWeekCharts(week.daily);
+  } else {
+    console.warn("Chart.js did not load — graphs are skipped, everything else still works.");
+  }
+}
+
+function initExportButton() {
+  document.getElementById("exportBtn").addEventListener("click", async () => {
+    const data = await apiGet("/export");
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `serenia-timekeeper-export-${state.activeDate}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 function renderCategoryChart(breakdown) {
@@ -150,13 +184,19 @@ function renderCategoryChart(breakdown) {
       datasets: [{ data, backgroundColor: labels.map((l) => CATEGORY_COLORS[l] || "#666") }],
     },
     options: {
-      plugins: { legend: { position: "right", labels: { color: "#C7CDD6", font: { family: "IBM Plex Sans" } } } },
+      plugins: { legend: { position: "right", labels: { color: cssVar("--text"), font: { family: "IBM Plex Sans" } } } },
     },
   });
 }
 
 function renderWeekCharts(daily) {
   const labels = daily.map((d) => DAY_NAMES[new Date(d.date).getDay() === 0 ? 6 : new Date(d.date).getDay() - 1]);
+  const textDim = cssVar("--text-dim");
+  const text = cssVar("--text");
+  const gridColor = cssVar("--line-soft");
+  const brass = cssVar("--brass");
+  const blue = cssVar("--blue");
+  const teal = cssVar("--teal");
 
   const effCtx = document.getElementById("weekEffChart");
   if (state.charts.eff) state.charts.eff.destroy();
@@ -167,16 +207,16 @@ function renderWeekCharts(daily) {
       datasets: [{
         label: "Effectiveness",
         data: daily.map((d) => Math.round(d.effective_ratio * 100)),
-        borderColor: "#CC9E4F",
-        backgroundColor: "rgba(204,158,79,0.15)",
+        borderColor: brass,
+        backgroundColor: brass + "26",
         tension: 0.3,
         fill: true,
       }],
     },
     options: {
       scales: {
-        y: { min: 0, max: 100, ticks: { color: "#7C8896" }, grid: { color: "#232E3A" } },
-        x: { ticks: { color: "#7C8896" }, grid: { display: false } },
+        y: { min: 0, max: 100, ticks: { color: textDim }, grid: { color: gridColor } },
+        x: { ticks: { color: textDim }, grid: { display: false } },
       },
       plugins: { legend: { display: false } },
     },
@@ -189,16 +229,16 @@ function renderWeekCharts(daily) {
     data: {
       labels,
       datasets: [
-        { label: "Hours logged", data: daily.map((d) => d.hours_logged), backgroundColor: "#6C8EBF" },
-        { label: "Tasks completed", data: daily.map((d) => d.tasks_completed), backgroundColor: "#4FA69E" },
+        { label: "Hours logged", data: daily.map((d) => d.hours_logged), backgroundColor: blue },
+        { label: "Tasks completed", data: daily.map((d) => d.tasks_completed), backgroundColor: teal },
       ],
     },
     options: {
       scales: {
-        y: { ticks: { color: "#7C8896" }, grid: { color: "#232E3A" } },
-        x: { ticks: { color: "#7C8896" }, grid: { display: false } },
+        y: { ticks: { color: textDim }, grid: { color: gridColor } },
+        x: { ticks: { color: textDim }, grid: { display: false } },
       },
-      plugins: { legend: { labels: { color: "#C7CDD6" } } },
+      plugins: { legend: { labels: { color: text } } },
     },
   });
 }
@@ -337,6 +377,320 @@ function initInboxForm() {
     await apiPost("/tasks", { title, task_date: new Date().toISOString().slice(0, 10) });
     document.getElementById("inboxForm").reset();
     loadInbox();
+  });
+}
+
+/* ==========================================================
+   HABIT TRACKER
+   ========================================================== */
+async function loadHabits() {
+  const grid = await apiGet(`/habits/grid?days=7&end_date=${state.activeDate}`);
+  const wrap = document.getElementById("habitGrid");
+  wrap.innerHTML = "";
+
+  if (!grid.habits.length) {
+    wrap.innerHTML = '<div style="color:#7C8896;font-size:13px;">No habits yet — add one above.</div>';
+    return;
+  }
+
+  const table = document.createElement("div");
+  table.className = "habit-table";
+
+  const header = document.createElement("div");
+  header.className = "habit-row habit-header";
+  header.innerHTML =
+    '<div class="habit-name-col">Habit</div>' +
+    grid.dates.map((d) => `<div class="habit-day-col">${new Date(d).toLocaleDateString(undefined, { weekday: "short" })}<br><span>${d.slice(5)}</span></div>`).join("") +
+    '<div class="habit-streak-col">Streak</div><div class="habit-del-col"></div>';
+  table.appendChild(header);
+
+  grid.habits.forEach((h) => {
+    const row = document.createElement("div");
+    row.className = "habit-row";
+    row.innerHTML =
+      `<div class="habit-name-col">${escapeHtml(h.name)}</div>` +
+      grid.dates.map((d) => `<div class="habit-day-col"><button class="habit-check ${h.checks[d] ? "on" : ""}" data-date="${d}">${h.checks[d] ? "✓" : ""}</button></div>`).join("") +
+      `<div class="habit-streak-col">🔥 ${h.streak}</div>` +
+      `<div class="habit-del-col"><button class="habit-delete">✕</button></div>`;
+
+    row.querySelectorAll(".habit-check").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await apiPost(`/habits/${h.id}/toggle`, { log_date: btn.dataset.date });
+        loadHabits();
+      });
+    });
+    row.querySelector(".habit-delete").addEventListener("click", async () => {
+      await apiDelete(`/habits/${h.id}`);
+      loadHabits();
+    });
+    table.appendChild(row);
+  });
+
+  wrap.appendChild(table);
+}
+
+function initHabitForm() {
+  document.getElementById("habitForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("habitName").value.trim();
+    if (!name) return;
+    const freq = document.getElementById("habitFrequency").value;
+    const res = await apiPost("/habits", { name, frequency: freq });
+    if (res.error) { alert(res.error); return; }
+    document.getElementById("habitForm").reset();
+    loadHabits();
+  });
+}
+
+/* ==========================================================
+   FOCUS TIMER (client-side countdown, logs on completion)
+   ========================================================== */
+function updateFocusDisplay() {
+  const m = Math.floor(state.focus.seconds / 60).toString().padStart(2, "0");
+  const s = (state.focus.seconds % 60).toString().padStart(2, "0");
+  document.getElementById("focusDisplay").textContent = `${m}:${s}`;
+}
+
+function initFocusTimer() {
+  document.querySelectorAll(".preset-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      clearInterval(state.focus.timer);
+      state.focus.running = false;
+      const mins = parseInt(btn.dataset.mins);
+      state.focus.seconds = mins * 60;
+      state.focus.totalSeconds = mins * 60;
+      updateFocusDisplay();
+    });
+  });
+
+  document.getElementById("focusStart").addEventListener("click", () => {
+    if (state.focus.running) return;
+    state.focus.running = true;
+    state.focus.timer = setInterval(async () => {
+      state.focus.seconds -= 1;
+      updateFocusDisplay();
+      if (state.focus.seconds <= 0) {
+        clearInterval(state.focus.timer);
+        state.focus.running = false;
+        const minutes = Math.round(state.focus.totalSeconds / 60);
+        const label = document.getElementById("focusLabel").value.trim();
+        await apiPost("/focus", { log_date: state.activeDate, minutes, label });
+        state.focus.seconds = state.focus.totalSeconds;
+        updateFocusDisplay();
+        loadFocus();
+        if (state.activeView === "dashboard") loadDashboard();
+      }
+    }, 1000);
+  });
+
+  document.getElementById("focusPause").addEventListener("click", () => {
+    clearInterval(state.focus.timer);
+    state.focus.running = false;
+  });
+
+  document.getElementById("focusReset").addEventListener("click", () => {
+    clearInterval(state.focus.timer);
+    state.focus.running = false;
+    state.focus.seconds = state.focus.totalSeconds;
+    updateFocusDisplay();
+  });
+
+  updateFocusDisplay();
+}
+
+async function loadFocus() {
+  const data = await apiGet(`/focus?date=${state.activeDate}`);
+  document.getElementById("focusTotalToday").textContent = `${data.total_minutes} min logged across ${data.sessions.length} session(s)`;
+  const list = document.getElementById("focusSessionsList");
+  list.innerHTML = data.sessions
+    .map((s) => `<div class="focus-session-row"><span>${s.label || "Focus session"}</span><span>${s.minutes} min</span></div>`)
+    .join("") || '<div style="color:#7C8896;font-size:12.5px;">No sessions logged yet today.</div>';
+}
+
+/* ==========================================================
+   THEME (dark / light)
+   ========================================================== */
+function applyTheme(theme) {
+  if (theme === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+    document.getElementById("themeIcon").textContent = "☀";
+    document.getElementById("themeLabel").textContent = "Light";
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+    document.getElementById("themeIcon").textContent = "☾";
+    document.getElementById("themeLabel").textContent = "Dark";
+  }
+  localStorage.setItem("serenia-theme", theme);
+}
+
+function initTheme() {
+  const saved = localStorage.getItem("serenia-theme") || "dark";
+  applyTheme(saved);
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+    applyTheme(current === "light" ? "dark" : "light");
+    if (state.activeView === "dashboard") loadDashboard(); // charts need re-render with new colors
+  });
+}
+
+/* ==========================================================
+   MONTHLY CALENDAR
+   ========================================================== */
+function monthMatrix(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday=0
+  const gridStart = new Date(year, month, 1 - startOffset);
+  const days = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+function toDateStr(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+async function loadCalendar() {
+  const monthDate = state.calendar.monthDate;
+  document.getElementById("calMonthLabel").textContent = monthDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  const days = monthMatrix(monthDate);
+  const rangeStart = toDateStr(days[0]);
+  const rangeEnd = toDateStr(days[days.length - 1]);
+  const tasks = await apiGet(`/tasks?start=${rangeStart}&end=${rangeEnd}`);
+
+  const tasksByDate = {};
+  tasks.forEach((t) => {
+    (tasksByDate[t.task_date] = tasksByDate[t.task_date] || []).push(t);
+  });
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const grid = document.getElementById("calGrid");
+  grid.innerHTML = "";
+
+  days.forEach((d) => {
+    const dateStr = toDateStr(d);
+    const inMonth = d.getMonth() === monthDate.getMonth();
+    const dayTasks = tasksByDate[dateStr] || [];
+
+    const cell = document.createElement("div");
+    cell.className = "cal-day" +
+      (inMonth ? "" : " other-month") +
+      (dateStr === todayStr ? " is-today" : "") +
+      (dateStr === state.calendar.selectedDate ? " is-selected" : "");
+
+    const dots = dayTasks.slice(0, 6).map((t) => {
+      let cls = "";
+      if (t.is_important && t.is_urgent) cls = "important-urgent";
+      else if (t.is_important) cls = "important";
+      else if (t.is_urgent) cls = "urgent";
+      return `<span class="cal-dot ${cls}"></span>`;
+    }).join("");
+
+    cell.innerHTML = `
+      <div class="cal-day-num">${d.getDate()}</div>
+      <div class="cal-day-dots">${dots}</div>
+      ${dayTasks.length > 6 ? `<div class="cal-more">+${dayTasks.length - 6} more</div>` : ""}
+    `;
+    cell.addEventListener("click", () => {
+      state.calendar.selectedDate = dateStr;
+      loadCalendar();
+    });
+    grid.appendChild(cell);
+  });
+
+  renderCalDayPanel(tasksByDate[state.calendar.selectedDate] || []);
+}
+
+function renderCalDayPanel(dayTasks) {
+  const sel = state.calendar.selectedDate;
+  document.getElementById("calSelectedLabel").textContent = new Date(sel + "T00:00:00").toLocaleDateString(undefined, {
+    weekday: "long", month: "long", day: "numeric", year: "numeric",
+  });
+
+  const clip = state.calendar.clipboard;
+  const pasteBtn = document.getElementById("calPasteBtn");
+  const note = document.getElementById("calClipboardNote");
+  if (clip && clip !== sel) {
+    pasteBtn.disabled = false;
+    note.textContent = `Clipboard: tasks copied from ${clip}`;
+  } else {
+    pasteBtn.disabled = true;
+    note.textContent = clip === sel ? "Clipboard has this same day — pick a different day to paste into." : "";
+  }
+
+  const list = document.getElementById("calDayTasks");
+  list.innerHTML = "";
+  if (!dayTasks.length) {
+    list.innerHTML = '<div style="color:#7C8896;font-size:13px;">No tasks on this day.</div>';
+    return;
+  }
+  dayTasks.forEach((t) => {
+    const el = document.createElement("div");
+    el.className = "task-item" + (t.is_completed ? " completed" : "");
+    el.innerHTML = `
+      <input type="checkbox" ${t.is_completed ? "checked" : ""}>
+      <span class="task-item-title">${escapeHtml(t.title)}</span>
+      <button title="Delete">✕</button>
+    `;
+    el.querySelector("input").addEventListener("change", async (e) => {
+      await apiPut(`/tasks/${t.id}`, { is_completed: e.target.checked });
+      loadCalendar();
+    });
+    el.querySelector("button").addEventListener("click", async () => {
+      await apiDelete(`/tasks/${t.id}`);
+      loadCalendar();
+    });
+    list.appendChild(el);
+  });
+}
+
+function initCalendar() {
+  document.getElementById("calPrevMonth").addEventListener("click", () => {
+    state.calendar.monthDate = new Date(state.calendar.monthDate.getFullYear(), state.calendar.monthDate.getMonth() - 1, 1);
+    loadCalendar();
+  });
+  document.getElementById("calNextMonth").addEventListener("click", () => {
+    state.calendar.monthDate = new Date(state.calendar.monthDate.getFullYear(), state.calendar.monthDate.getMonth() + 1, 1);
+    loadCalendar();
+  });
+  document.getElementById("calGotoToday").addEventListener("click", () => {
+    state.calendar.monthDate = new Date();
+    state.calendar.selectedDate = new Date().toISOString().slice(0, 10);
+    loadCalendar();
+  });
+
+  document.getElementById("calCopyBtn").addEventListener("click", () => {
+    state.calendar.clipboard = state.calendar.selectedDate;
+    loadCalendar();
+  });
+  document.getElementById("calPasteBtn").addEventListener("click", async () => {
+    if (!state.calendar.clipboard) return;
+    const res = await apiPost("/tasks/copy-day", {
+      from_date: state.calendar.clipboard,
+      to_date: state.calendar.selectedDate,
+    });
+    state.calendar.clipboard = null;
+    loadCalendar();
+  });
+
+  document.getElementById("calTaskForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = document.getElementById("calTaskTitle").value.trim();
+    if (!title) return;
+    await apiPost("/tasks", {
+      title,
+      task_date: state.calendar.selectedDate,
+      is_important: document.getElementById("calTaskImportant").checked,
+      is_urgent: document.getElementById("calTaskUrgent").checked,
+    });
+    document.getElementById("calTaskForm").reset();
+    loadCalendar();
   });
 }
 
@@ -626,11 +980,16 @@ function escapeHtml(str) {
 document.addEventListener("DOMContentLoaded", () => {
   initNav();
   initDateNav();
+  initTheme();
+  initCalendar();
   initInboxForm();
   initTaskForm();
   initRecurringForm();
   initDistractionForm();
   initNotebook();
+  initHabitForm();
+  initFocusTimer();
+  initExportButton();
   tickClock();
   setInterval(tickClock, 30000);
   loadDashboard();

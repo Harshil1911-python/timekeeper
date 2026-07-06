@@ -26,6 +26,27 @@
   --radius: 6px;
 }
 
+/* Light mode — same instrument-logbook concept, read as ink on paper
+   instead of a brass dial lit up at night. */
+:root[data-theme="light"]{
+  --bg-deep:      #F3EFE4;
+  --panel:        #FBF9F3;
+  --panel-raised: #F0EBDD;
+  --line:         #D8CFB8;
+  --line-soft:    #E4DDC9;
+
+  --text-hi:      #241D12;
+  --text:         #4A4234;
+  --text-dim:     #8B8168;
+
+  --brass:        #9C6F26;
+  --brass-dim:    #C9AD79;
+  --teal:         #2E7D74;
+  --blue:         #3E5F8A;
+  --alert:        #A8451F;
+  --alert-dim:    #E3B199;
+}
+
 *{ box-sizing: border-box; }
 
 html,body{
@@ -34,6 +55,7 @@ html,body{
   color: var(--text);
   font-family: var(--font-body);
   height: 100%;
+  transition: background-color .2s ease, color .2s ease;
 }
 
 button, input, select, textarea{ font-family: inherit; }
@@ -140,6 +162,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background: var(--brass);
   box-shadow: 0 0 6px 1px var(--brass);
 }
+
+.theme-toggle{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background: var(--panel-raised);
+  border:1px solid var(--line);
+  color: var(--text-hi);
+  padding:8px 10px;
+  border-radius: var(--radius);
+  cursor:pointer;
+  font-size:12.5px;
+  margin-bottom:12px;
+}
+.theme-toggle:hover{ border-color: var(--brass-dim); }
 
 .rail-footer{
   padding:14px 8px 4px;
@@ -359,6 +397,114 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   color: var(--text-hi);
 }
 
+.deck-title-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  margin-bottom: 6px;
+}
+
+/* ==========================================================
+   HABIT TRACKER
+   ========================================================== */
+.habit-grid-wrap{ overflow-x:auto; }
+.habit-table{ display:flex; flex-direction:column; min-width:600px; }
+.habit-row{
+  display:grid;
+  grid-template-columns: 200px repeat(7, 46px) 70px 34px;
+  align-items:center;
+  gap:4px;
+  padding:6px 0;
+  border-bottom:1px solid var(--line-soft);
+}
+.habit-header{
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size:10.5px;
+  text-align:center;
+  border-bottom:1px solid var(--line);
+}
+.habit-header span{ color: var(--text-dim); }
+.habit-name-col{ color: var(--text-hi); font-size:13.5px; padding-right:8px; }
+.habit-day-col{ display:flex; justify-content:center; }
+.habit-check{
+  width:30px; height:30px;
+  border-radius:6px;
+  border:1px solid var(--line);
+  background: var(--panel-raised);
+  color: var(--text-dim);
+  cursor:pointer;
+  font-size:14px;
+}
+.habit-check.on{ background: var(--teal); border-color: var(--teal); color:#0B1F1D; font-weight:700; }
+.habit-streak-col{ text-align:center; font-family: var(--font-mono); color: var(--brass); font-size:12.5px; }
+.habit-del-col button{ background:none; border:none; color: var(--text-dim); cursor:pointer; }
+.habit-del-col button:hover{ color: var(--alert); }
+
+/* ==========================================================
+   FOCUS TIMER
+   ========================================================== */
+.focus-wrap{
+  display:grid;
+  grid-template-columns: 340px 1fr;
+  gap:16px;
+}
+.focus-timer-card{
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding:24px;
+  text-align:center;
+}
+.focus-display{
+  font-family: var(--font-mono);
+  font-size:52px;
+  color: var(--brass);
+  letter-spacing:0.03em;
+  margin-bottom:16px;
+}
+.focus-presets{ display:flex; gap:8px; justify-content:center; margin-bottom:16px; }
+.preset-btn{
+  background: var(--panel-raised);
+  border:1px solid var(--line);
+  color: var(--text);
+  padding:7px 12px;
+  border-radius:4px;
+  cursor:pointer;
+  font-size:12.5px;
+}
+.preset-btn:hover{ border-color: var(--brass-dim); color: var(--text-hi); }
+#focusLabel{
+  width:100%;
+  background: var(--panel-raised);
+  border:1px solid var(--line);
+  color: var(--text-hi);
+  padding:9px 12px;
+  border-radius:4px;
+  font-size:13px;
+  margin-bottom:16px;
+}
+.focus-controls{ display:flex; gap:8px; justify-content:center; }
+.focus-summary{
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding:18px 20px;
+}
+.focus-total{ color: var(--text-hi); font-family: var(--font-display); font-size:16px; margin-bottom:12px; }
+.focus-session-row{
+  display:flex;
+  justify-content:space-between;
+  background: var(--panel-raised);
+  border:1px solid var(--line-soft);
+  border-radius:4px;
+  padding:8px 12px;
+  font-size:13px;
+  color: var(--text-hi);
+  margin-bottom:6px;
+}
+
 /* ==========================================================
    INBOX (task triage: do / defer / delegate / delete)
    ========================================================== */
@@ -431,6 +577,97 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   flex:1;
   min-width:120px;
 }
+
+/* ==========================================================
+   MONTHLY CALENDAR
+   ========================================================== */
+.cal-toolbar{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-bottom:16px;
+}
+.cal-month-label{
+  font-family: var(--font-display);
+  font-size:17px;
+  color: var(--text-hi);
+  min-width:170px;
+}
+.cal-grid-wrap{ margin-bottom:20px; }
+.cal-weekday-row{
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap:6px;
+  margin-bottom:6px;
+}
+.cal-weekday-row div{
+  font-family: var(--font-mono);
+  font-size:10.5px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color: var(--text-dim);
+  text-align:center;
+}
+.cal-grid{
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap:6px;
+}
+.cal-day{
+  min-height:88px;
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding:8px;
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+.cal-day:hover{ border-color: var(--brass-dim); }
+.cal-day.other-month{ opacity:0.35; }
+.cal-day.is-today{ border-color: var(--brass); box-shadow: inset 0 0 0 1px var(--brass); }
+.cal-day.is-selected{ background: var(--panel-raised); border-color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); }
+.cal-day-num{
+  font-family: var(--font-mono);
+  font-size:12.5px;
+  color: var(--text-hi);
+}
+.cal-day-dots{ display:flex; flex-wrap:wrap; gap:3px; }
+.cal-dot{ width:6px; height:6px; border-radius:50%; background: var(--blue); }
+.cal-dot.important-urgent{ background: var(--alert); }
+.cal-dot.important{ background: var(--blue); }
+.cal-dot.urgent{ background: var(--brass); }
+.cal-more{ font-size:10px; color: var(--text-dim); font-family: var(--font-mono); }
+
+.cal-day-panel{
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding:18px 20px;
+}
+.cal-day-panel-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:12px;
+}
+.cal-day-panel-head > span{
+  font-family: var(--font-display);
+  font-size:16px;
+  color: var(--text-hi);
+}
+.cal-day-actions{ display:flex; gap:8px; }
+.cal-clipboard-note{
+  font-size:12px;
+  color: var(--brass);
+  font-family: var(--font-mono);
+  margin-bottom:10px;
+  min-height:14px;
+}
+.cal-day-tasks{ display:flex; flex-direction:column; gap:6px; margin-top:12px; }
 
 /* ==========================================================
    TASKS + Eisenhower matrix
@@ -782,7 +1019,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   }
   .rail-brand{ border-bottom:none; margin-bottom:0; padding:0 12px 0 0; border-right:1px solid var(--line); }
   .rail-switches{ flex-direction:row; }
-  .rail-footer{ display:none; }
+  .rail-footer{ display:flex; align-items:center; border-top:none; padding:0; }
+  .rail-clock, .rail-date{ display:none; }
+  .theme-toggle{ width:auto; margin-bottom:0; }
   .deck{ padding:20px 18px 50px; }
   .gauge-row{ grid-template-columns: 1fr 1fr; }
   .panel-row{ grid-template-columns: 1fr; }
@@ -791,4 +1030,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .notebook{ grid-template-columns: 1fr; }
   .ledger-row{ grid-template-columns: 52px 1fr 34px; }
   .ledger-cat{ display:none; }
+  .focus-wrap{ grid-template-columns: 1fr; }
+  .habit-row{ grid-template-columns: 130px repeat(7, 38px) 50px 28px; }
+  .deck-title-row{ flex-direction:column; }
+  .cal-day{ min-height:56px; padding:5px; }
+  .cal-month-label{ min-width:auto; }
 }

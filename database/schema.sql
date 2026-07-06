@@ -96,3 +96,31 @@ CREATE TABLE IF NOT EXISTS daily_ratings (
 CREATE INDEX IF NOT EXISTS idx_time_logs_date ON time_logs(log_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks(task_date);
 CREATE INDEX IF NOT EXISTS idx_distractions_date ON distractions(log_date);
+
+-- Habit tracker: a habit you check off each day it's done.
+CREATE TABLE IF NOT EXISTS habits (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL UNIQUE,
+    frequency   TEXT    NOT NULL DEFAULT 'daily',   -- 'daily' or 'weekly'
+    is_active   INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- One row = one habit checked-off on one date.
+CREATE TABLE IF NOT EXISTS habit_logs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    habit_id    INTEGER NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
+    log_date    TEXT    NOT NULL,
+    UNIQUE(habit_id, log_date)
+);
+CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(log_date);
+
+-- Focus / Pomodoro sessions — completed timer runs, logged for the day.
+CREATE TABLE IF NOT EXISTS focus_sessions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    log_date     TEXT    NOT NULL,
+    minutes      INTEGER NOT NULL,
+    label        TEXT    DEFAULT '',
+    completed_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_focus_date ON focus_sessions(log_date);

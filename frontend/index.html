@@ -8,6 +8,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <link rel="stylesheet" href="css/style.css">
+<script>
+  (function(){
+    var saved = localStorage.getItem('serenia-theme');
+    if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  })();
+</script>
 </head>
 <body>
 
@@ -36,6 +42,15 @@
       <button class="switch" data-view="tasks">
         <span class="switch-dot"></span> Tasks
       </button>
+      <button class="switch" data-view="calendar">
+        <span class="switch-dot"></span> Calendar
+      </button>
+      <button class="switch" data-view="habits">
+        <span class="switch-dot"></span> Habits
+      </button>
+      <button class="switch" data-view="focus">
+        <span class="switch-dot"></span> Focus Timer
+      </button>
       <button class="switch" data-view="schedule">
         <span class="switch-dot"></span> Schedule
       </button>
@@ -51,6 +66,9 @@
     </div>
 
     <div class="rail-footer">
+      <button class="theme-toggle" id="themeToggle" title="Toggle light/dark">
+        <span id="themeIcon">☾</span> <span id="themeLabel">Dark</span>
+      </button>
       <div class="rail-clock" id="railClock">--:--</div>
       <div class="rail-date" id="railDate">—</div>
     </div>
@@ -72,8 +90,13 @@
 
     <!-- ---------------- DASHBOARD ---------------- -->
     <section class="view active" id="view-dashboard">
-      <h1 class="deck-title">Daily Performance</h1>
-      <p class="deck-sub">A read-out of how the day actually went, against how it was planned.</p>
+      <div class="deck-title-row">
+        <div>
+          <h1 class="deck-title">Daily Performance</h1>
+          <p class="deck-sub">A read-out of how the day actually went, against how it was planned.</p>
+        </div>
+        <button class="btn-secondary" id="exportBtn">⬇ Export data</button>
+      </div>
 
       <div class="gauge-row">
         <div class="gauge-card">
@@ -90,6 +113,21 @@
           <div class="gauge-label">Tasks Completed</div>
           <div class="gauge-value" id="tasksCompleted">—</div>
           <div class="gauge-note">marked done today</div>
+        </div>
+        <div class="gauge-card">
+          <div class="gauge-label">Planned vs Actual</div>
+          <div class="gauge-value" id="plannedActual">—</div>
+          <div class="gauge-note">hours scheduled vs hours logged</div>
+        </div>
+        <div class="gauge-card">
+          <div class="gauge-label">Focus Time</div>
+          <div class="gauge-value" id="focusTime">—</div>
+          <div class="gauge-note" id="focusNote">completed focus sessions</div>
+        </div>
+        <div class="gauge-card">
+          <div class="gauge-label">Habits</div>
+          <div class="gauge-value" id="habitsDone">—</div>
+          <div class="gauge-note">checked off today</div>
         </div>
         <div class="gauge-card">
           <div class="gauge-label">Self Rating</div>
@@ -134,6 +172,93 @@
       </form>
 
       <div class="inbox-list" id="inboxList"></div>
+    </section>
+
+    <!-- ---------------- CALENDAR ---------------- -->
+    <section class="view" id="view-calendar">
+      <h1 class="deck-title">Monthly Calendar</h1>
+      <p class="deck-sub">Every task shows on the day it's scheduled for — including tasks you've deferred. Select a day, then copy its tasks onto another day.</p>
+
+      <div class="cal-toolbar">
+        <button class="dnav-btn" id="calPrevMonth">‹</button>
+        <div class="cal-month-label" id="calMonthLabel">—</div>
+        <button class="dnav-btn" id="calNextMonth">›</button>
+        <button class="dnav-today" id="calGotoToday">Today</button>
+      </div>
+
+      <div class="cal-grid-wrap">
+        <div class="cal-weekday-row">
+          <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+        </div>
+        <div class="cal-grid" id="calGrid"><!-- built by JS --></div>
+      </div>
+
+      <div class="cal-day-panel">
+        <div class="cal-day-panel-head">
+          <span id="calSelectedLabel">Select a day</span>
+          <div class="cal-day-actions">
+            <button class="btn-secondary" id="calCopyBtn">⧉ Copy this day's tasks</button>
+            <button class="btn-primary" id="calPasteBtn" disabled>📋 Paste here</button>
+          </div>
+        </div>
+        <div id="calClipboardNote" class="cal-clipboard-note"></div>
+
+        <form class="task-form" id="calTaskForm">
+          <input type="text" id="calTaskTitle" placeholder="Add a task to this day">
+          <label class="flag-check flag-important"><input type="checkbox" id="calTaskImportant"> Important</label>
+          <label class="flag-check flag-urgent"><input type="checkbox" id="calTaskUrgent"> Urgent</label>
+          <button type="submit" class="btn-primary">Add</button>
+        </form>
+
+        <div class="cal-day-tasks" id="calDayTasks"></div>
+      </div>
+    </section>
+
+    <!-- ---------------- HABITS ---------------- -->
+    <section class="view" id="view-habits">
+      <h1 class="deck-title">Habit Tracker</h1>
+      <p class="deck-sub">Check off each habit for the days you did it. Streaks count consecutive days ending today.</p>
+
+      <form class="task-form" id="habitForm">
+        <input type="text" id="habitName" placeholder="New habit, e.g. Read 20 minutes" required>
+        <select id="habitFrequency">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
+        <button type="submit" class="btn-primary">Add habit</button>
+      </form>
+
+      <div class="habit-grid-wrap">
+        <div class="habit-grid" id="habitGrid"><!-- built by JS --></div>
+      </div>
+    </section>
+
+    <!-- ---------------- FOCUS TIMER ---------------- -->
+    <section class="view" id="view-focus">
+      <h1 class="deck-title">Focus Timer</h1>
+      <p class="deck-sub">Run a focus session. When it finishes, it's logged automatically for today.</p>
+
+      <div class="focus-wrap">
+        <div class="focus-timer-card">
+          <div class="focus-display" id="focusDisplay">25:00</div>
+          <div class="focus-presets">
+            <button class="preset-btn" data-mins="25">25 min</button>
+            <button class="preset-btn" data-mins="45">45 min</button>
+            <button class="preset-btn" data-mins="60">60 min</button>
+          </div>
+          <input type="text" id="focusLabel" placeholder="What are you focusing on? (optional)">
+          <div class="focus-controls">
+            <button class="btn-primary" id="focusStart">Start</button>
+            <button class="btn-secondary" id="focusPause">Pause</button>
+            <button class="btn-secondary" id="focusReset">Reset</button>
+          </div>
+        </div>
+        <div class="focus-summary">
+          <div class="panel-head">Today's focus sessions</div>
+          <div class="focus-total" id="focusTotalToday">0 min logged</div>
+          <div class="focus-sessions-list" id="focusSessionsList"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ---------------- TASKS ---------------- -->

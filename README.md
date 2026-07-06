@@ -3,9 +3,35 @@
 A personal time-management logbook: hour-by-hour time tracking, a task
 Inbox for triaging what to do/defer/delegate/delete, an Important/Urgent
 task matrix with an auto-computed effectiveness ratio, a Calendly-style
-weekly schedule grid, recurring-task detection, a distraction budget
-tracker, performance graphs, and a synced notebook — all backed by one
-SQLite database.
+weekly schedule grid, recurring-task detection, a habit tracker with
+streaks, a focus/Pomodoro timer, a distraction budget tracker, planned-
+vs-actual and performance graphs, one-click data export, and a synced
+notebook — all backed by one SQLite database.
+
+## What's new in this version
+
+- **Critical fix:** the database was never being initialized when run
+  under a production server (gunicorn/Render) — only under `python
+  app.py` directly. This is why nothing was saving. Fixed by initializing
+  the database unconditionally at import time.
+- **Habit Tracker** — add habits, check them off per day on a 7-day
+  grid, streaks computed automatically.
+- **Focus Timer** — a Pomodoro-style countdown (25/45/60 min presets);
+  completed sessions log automatically to the day's total.
+- **Planned vs Actual** — dashboard now compares scheduled hours for
+  that day-of-week against hours actually logged.
+- **Data export** — one-click download of your full dataset as JSON
+  from the Dashboard.
+- **Resilience** — all API errors now return clean JSON instead of
+  crashing; if the Chart.js CDN fails to load for any reason, the
+  dashboard numbers still populate (only the graphs are skipped) instead
+  of the whole page breaking.
+- **Monthly Calendar** — every task shows on the day it's dated for,
+  including tasks you've deferred (deferring just changes a task's date,
+  so it appears wherever it lands). Click a day to see its tasks, add
+  new ones, or **copy that day's tasks and paste them onto another day**.
+- **Dark / Light mode** — toggle in the bottom-left of the sidebar; your
+  choice is remembered on this device.
 
 ## Structure
 
@@ -46,6 +72,10 @@ else to configure.
   someone by name — it stays in the inbox tagged with who it's with),
   or **Delete**. Deferring or completing a task automatically
   recomputes the effectiveness ratio for both the old and new date.
+- **Habit Tracker** — add a habit, check it off on the day you did it.
+  Streaks count consecutive checked days ending today.
+- **Focus Timer** — run a 25/45/60-minute focus session; when it
+  finishes, it logs itself automatically for the day.
 - **Hour Log** — log what you did each hour of the day (activity + category
   + optional "distraction" flag). This is the raw ledger everything else
   reads from.

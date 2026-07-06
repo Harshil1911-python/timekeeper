@@ -8,6 +8,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 import os
+import sqlite3
 
 from db import get_connection, init_db, rows_to_list, row_to_dict
 
@@ -42,6 +43,22 @@ def index():
 # ------------------------------------------------------------------ #
 # Helpers
 # ------------------------------------------------------------------ #
+
+@app.errorhandler(404)
+def handle_404(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "not found"}), 404
+    return e
+
+
+@app.errorhandler(Exception)
+def handle_error(e):
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+    app.logger.exception("Unhandled error")
+    return jsonify({"error": "server error", "detail": str(e)}), 500
+
 
 def today_str():
     return datetime.now().strftime("%Y-%m-%d")
@@ -155,6 +172,32 @@ def delete_timelog(log_id):
 # ------------------------------------------------------------------ #
 # TASKS — important / urgent, feeds effectiveness ratio
 # ------------------------------------------------------------------ #
+
+@app.route("/api/tasks/copy-day", methods=["POST"])
+def copy_day_tasks():
+    """Duplicate every task from one date onto another (fresh, not-completed copies)."""
+    data = request.get_json(force=True)
+    from_date = data["from_date"]
+    to_date = data["to_date"]
+    conn = get_connection()
+    tasks = conn.execute("SELECT * FROM tasks WHERE task_date = ?", (from_date,)).fetchall()
+    created_ids = []
+    for t in tasks:
+        cur = conn.execute(
+            """INSERT INTO tasks (title, description, task_date, is_important, is_urgent, is_completed)
+               VALUES (?, ?, ?, ?, ?, 0)""",
+            (t["title"], t["description"], to_date, t["is_important"], t["is_urgent"]),
+        )
+        created_ids.append(cur.lastrowid)
+    conn.commit()
+    recompute_daily_rating(conn, to_date)
+    rows = []
+    if created_ids:
+        placeholders = ",".join("?" * len(created_ids))
+        rows = conn.execute(f"SELECT * FROM tasks WHERE id IN ({placeholders})", created_ids).fetchall()
+    conn.close()
+    return jsonify({"copied": len(created_ids), "tasks": rows_to_list(rows)})
+
 
 @app.route("/api/tasks", methods=["GET"])
 def get_tasks():
@@ -587,6 +630,22 @@ def dashboard_day():
     for l in logs:
         category_minutes[l["category"]] += 60
 
+    # Planned vs actual: how many hours were scheduled for this day-of-week
+    # vs how many hours actually got logged.
+    day_of_week = parse_date(date).weekday()
+    planned_blocks = conn.execute(
+        "SELECT * FROM schedule_blocks WHERE day_of_week = ? AND recurring = 1", (day_of_week,)
+    ).fetchall()
+    planned_hours = sum((b["end_hour"] - b["start_hour"]) for b in planned_blocks)
+
+    focus_rows = conn.execute("SELECT * FROM focus_sessions WHERE log_date = ?", (date,)).fetchall()
+    focus_minutes = sum(r["minutes"] for r in focus_rows)
+
+    habit_rows = conn.execute("SELECT * FROM habits WHERE is_active = 1").fetchall()
+    habit_done = conn.execute(
+        "SELECT COUNT(*) c FROM habit_logs WHERE log_date = ?", (date,)
+    ).fetchone()["c"]
+
     conn.close()
     return jsonify({
         "date": date,
@@ -596,6 +655,11 @@ def dashboard_day():
         "rating": row_to_dict(rating),
         "category_breakdown": dict(category_minutes),
         "hours_logged": len(logs),
+        "planned_hours": planned_hours,
+        "focus_minutes": focus_minutes,
+        "focus_sessions": len(focus_rows),
+        "habits_total": len(habit_rows),
+        "habits_done": habit_done,
     })
 
 
@@ -635,6 +699,159 @@ def dashboard_week():
         "daily": daily,
         "schedule": rows_to_list(schedule),
     })
+
+
+# ------------------------------------------------------------------ #
+# HABIT TRACKER
+# ------------------------------------------------------------------ #
+
+def compute_streak(conn, habit_id, end_date_str):
+    """Count consecutive checked-off days ending at end_date_str (inclusive)."""
+    checked = {
+        r["log_date"]
+        for r in conn.execute("SELECT log_date FROM habit_logs WHERE habit_id = ?", (habit_id,)).fetchall()
+    }
+    streak = 0
+    cur = parse_date(end_date_str)
+    while cur.strftime("%Y-%m-%d") in checked:
+        streak += 1
+        cur -= timedelta(days=1)
+    return streak
+
+
+@app.route("/api/habits", methods=["GET"])
+def get_habits():
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM habits WHERE is_active = 1 ORDER BY created_at").fetchall()
+    conn.close()
+    return jsonify(rows_to_list(rows))
+
+
+@app.route("/api/habits", methods=["POST"])
+def create_habit():
+    data = request.get_json(force=True)
+    name = data["name"].strip()
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "INSERT INTO habits (name, frequency) VALUES (?, ?)",
+            (name, data.get("frequency", "daily")),
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"error": "a habit with that name already exists"}), 409
+    row = conn.execute("SELECT * FROM habits WHERE id = ?", (cur.lastrowid,)).fetchone()
+    conn.close()
+    return jsonify(row_to_dict(row))
+
+
+@app.route("/api/habits/<int:habit_id>", methods=["DELETE"])
+def delete_habit(habit_id):
+    conn = get_connection()
+    conn.execute("DELETE FROM habits WHERE id = ?", (habit_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/habits/<int:habit_id>/toggle", methods=["POST"])
+def toggle_habit(habit_id):
+    data = request.get_json(force=True)
+    date = data.get("log_date", today_str())
+    conn = get_connection()
+    existing = conn.execute(
+        "SELECT id FROM habit_logs WHERE habit_id = ? AND log_date = ?", (habit_id, date)
+    ).fetchone()
+    if existing:
+        conn.execute("DELETE FROM habit_logs WHERE id = ?", (existing["id"],))
+        checked = False
+    else:
+        conn.execute("INSERT INTO habit_logs (habit_id, log_date) VALUES (?, ?)", (habit_id, date))
+        checked = True
+    conn.commit()
+    streak = compute_streak(conn, habit_id, today_str())
+    conn.close()
+    return jsonify({"checked": checked, "streak": streak})
+
+
+@app.route("/api/habits/grid", methods=["GET"])
+def habits_grid():
+    days = int(request.args.get("days", 7))
+    end_date = request.args.get("end_date", today_str())
+    end = parse_date(end_date)
+    dates = [(end - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
+
+    conn = get_connection()
+    habits = conn.execute("SELECT * FROM habits WHERE is_active = 1 ORDER BY created_at").fetchall()
+    result = []
+    for h in habits:
+        logs = conn.execute(
+            "SELECT log_date FROM habit_logs WHERE habit_id = ? AND log_date IN ({})".format(
+                ",".join("?" * len(dates))
+            ),
+            (h["id"], *dates),
+        ).fetchall()
+        checked_dates = {r["log_date"] for r in logs}
+        result.append({
+            "id": h["id"],
+            "name": h["name"],
+            "frequency": h["frequency"],
+            "checks": {d: (d in checked_dates) for d in dates},
+            "streak": compute_streak(conn, h["id"], today_str()),
+        })
+    conn.close()
+    return jsonify({"dates": dates, "habits": result})
+
+
+# ------------------------------------------------------------------ #
+# FOCUS / POMODORO TIMER
+# ------------------------------------------------------------------ #
+
+@app.route("/api/focus", methods=["GET"])
+def get_focus_sessions():
+    date = request.args.get("date", today_str())
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM focus_sessions WHERE log_date = ? ORDER BY completed_at", (date,)
+    ).fetchall()
+    total = sum(r["minutes"] for r in rows)
+    conn.close()
+    return jsonify({"sessions": rows_to_list(rows), "total_minutes": total})
+
+
+@app.route("/api/focus", methods=["POST"])
+def log_focus_session():
+    data = request.get_json(force=True)
+    date = data.get("log_date", today_str())
+    minutes = int(data.get("minutes", 25))
+    label = data.get("label", "")
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO focus_sessions (log_date, minutes, label) VALUES (?, ?, ?)",
+        (date, minutes, label),
+    )
+    conn.commit()
+    rows = conn.execute("SELECT * FROM focus_sessions WHERE log_date = ?", (date,)).fetchall()
+    total = sum(r["minutes"] for r in rows)
+    conn.close()
+    return jsonify({"sessions": rows_to_list(rows), "total_minutes": total})
+
+
+# ------------------------------------------------------------------ #
+# DATA EXPORT (backup)
+# ------------------------------------------------------------------ #
+
+@app.route("/api/export", methods=["GET"])
+def export_data():
+    conn = get_connection()
+    tables = ["time_logs", "tasks", "schedule_blocks", "recurring_tasks",
+              "distractions", "notes", "daily_ratings", "habits", "habit_logs",
+              "focus_sessions"]
+    dump = {t: rows_to_list(conn.execute(f"SELECT * FROM {t}").fetchall()) for t in tables}
+    conn.close()
+    dump["exported_at"] = datetime.now().isoformat()
+    return jsonify(dump)
 
 
 if __name__ == "__main__":
