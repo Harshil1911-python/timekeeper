@@ -578,6 +578,65 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   min-width:120px;
 }
 
+.sched-copy-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:16px;
+  padding:10px 14px;
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+}
+.sched-copy-row select{
+  background: var(--panel-raised);
+  border:1px solid var(--line);
+  color: var(--text-hi);
+  padding:7px 10px;
+  border-radius:4px;
+  font-size:12.5px;
+}
+.sched-cell{ position:relative; }
+.sched-cell .distraction-mark{
+  position:absolute;
+  top:1px; right:2px;
+  font-size:9px;
+  color: var(--alert);
+}
+
+.cal-sched-toggle{ margin-bottom:12px; }
+.cal-sched-drawer{ display:none; margin-bottom:20px; }
+.cal-sched-drawer.open{ display:block; }
+.cal-sched-table{
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap:8px;
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding:14px;
+}
+.cal-sched-day{ display:flex; flex-direction:column; gap:5px; }
+.cal-sched-day-head{
+  font-family: var(--font-mono);
+  font-size:11px;
+  color: var(--text-dim);
+  text-transform:uppercase;
+  border-bottom:1px solid var(--line-soft);
+  padding-bottom:4px;
+  margin-bottom:2px;
+}
+.cal-sched-block{
+  font-size:11px;
+  padding:4px 6px;
+  border-radius:3px;
+  background: var(--panel-raised);
+  border:1px solid var(--line-soft);
+  color: var(--text-hi);
+}
+.cal-sched-empty{ font-size:11px; color: var(--text-dim); }
+
 /* ==========================================================
    MONTHLY CALENDAR
    ========================================================== */

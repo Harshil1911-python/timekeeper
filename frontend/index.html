@@ -130,6 +130,11 @@
           <div class="gauge-note">checked off today</div>
         </div>
         <div class="gauge-card">
+          <div class="gauge-label">Free Time</div>
+          <div class="gauge-value" id="freeTime">—</div>
+          <div class="gauge-note" id="freeTimeNote">unscheduled &amp; unlogged hours</div>
+        </div>
+        <div class="gauge-card">
           <div class="gauge-label">Self Rating</div>
           <div class="gauge-value" id="selfRatingDisplay">—</div>
           <div class="gauge-note" id="ratingStars">tap to rate</div>
@@ -192,6 +197,9 @@
         </div>
         <div class="cal-grid" id="calGrid"><!-- built by JS --></div>
       </div>
+
+      <button class="btn-secondary cal-sched-toggle" id="calSchedToggle">▾ Show weekly schedule for this week</button>
+      <div class="cal-sched-drawer" id="calSchedDrawer"><!-- built by JS --></div>
 
       <div class="cal-day-panel">
         <div class="cal-day-panel-head">
@@ -296,7 +304,7 @@
     <!-- ---------------- SCHEDULE ---------------- -->
     <section class="view" id="view-schedule">
       <h1 class="deck-title">Weekly Schedule</h1>
-      <p class="deck-sub">Block your week ahead of time. Click an empty cell to reserve it, click a filled cell to clear it.</p>
+      <p class="deck-sub">Block your week ahead of time. Click an empty cell to reserve it, click a filled cell to clear it. ⚡ marks an hour where a distraction was actually logged this week.</p>
 
       <div class="sched-toolbar">
         <input type="text" id="blockTitle" placeholder="Block name, e.g. Deep Work">
@@ -308,6 +316,15 @@
           <option value="admin">Admin</option>
         </select>
         <span class="sched-hint">Choose a name + category, then click cells to paint them.</span>
+      </div>
+
+      <div class="sched-copy-row">
+        <span class="sched-hint">Copy a day's schedule onto another day:</span>
+        <select id="schedCopyFrom"></select>
+        <button class="btn-secondary" id="schedCopyBtn">⧉ Copy</button>
+        <span class="sched-hint">to</span>
+        <select id="schedCopyTo"></select>
+        <button class="btn-primary" id="schedPasteBtn">📋 Paste</button>
       </div>
 
       <div class="sched-grid-wrap">

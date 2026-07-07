@@ -29,9 +29,22 @@ notebook — all backed by one SQLite database.
 - **Monthly Calendar** — every task shows on the day it's dated for,
   including tasks you've deferred (deferring just changes a task's date,
   so it appears wherever it lands). Click a day to see its tasks, add
-  new ones, or **copy that day's tasks and paste them onto another day**.
+  new ones, or copy that day's tasks and paste them onto another day.
 - **Dark / Light mode** — toggle in the bottom-left of the sidebar; your
   choice is remembered on this device.
+- **Weekly schedule inside the Calendar** — click "Show weekly schedule
+  for this week" below the monthly grid to see that week's hour blocks
+  laid out Mon–Sun without leaving the Calendar tab.
+- **Copy/paste a day's schedule** — on the Schedule tab, pick a source
+  day and a target day and hit Paste to replace the target day's blocks
+  with the source day's.
+- **Free Time** — the Dashboard now shows how many hours today have
+  nothing scheduled and nothing logged yet, plus the actual free windows
+  (e.g. "14:00–17:00").
+- **Distractions sync into the Schedule** — mark an hour as a
+  distraction in the Hour Log, and a ⚡ appears on that hour/weekday in
+  the weekly Schedule grid, so you can see where distractions keep
+  showing up relative to what you planned.
 
 ## Structure
 

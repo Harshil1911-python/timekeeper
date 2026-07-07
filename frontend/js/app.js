@@ -130,6 +130,8 @@ async function loadDashboard() {
   document.getElementById("focusTime").textContent = day.focus_minutes + " min";
   document.getElementById("focusNote").textContent = day.focus_sessions + " session" + (day.focus_sessions === 1 ? "" : "s");
   document.getElementById("habitsDone").textContent = `${day.habits_done} / ${day.habits_total}`;
+  document.getElementById("freeTime").textContent = day.free_hour_count + "h";
+  document.getElementById("freeTimeNote").textContent = day.free_ranges.length ? day.free_ranges.join(", ") : "fully booked";
 
   const rating = day.rating?.rating;
   document.getElementById("selfRatingDisplay").textContent = rating ? "★".repeat(rating) + "☆".repeat(5 - rating) : "—";
@@ -605,6 +607,30 @@ async function loadCalendar() {
   });
 
   renderCalDayPanel(tasksByDate[state.calendar.selectedDate] || []);
+  await renderCalScheduleDrawer();
+}
+
+async function renderCalScheduleDrawer() {
+  const drawer = document.getElementById("calSchedDrawer");
+  if (!drawer.classList.contains("open")) return; // only fetch/render when visible
+  const blocks = await apiGet("/schedule");
+  const byDay = Array.from({ length: 7 }, () => []);
+  blocks.forEach((b) => byDay[b.day_of_week].push(b));
+  byDay.forEach((list) => list.sort((a, b) => a.start_hour - b.start_hour));
+
+  const table = document.createElement("div");
+  table.className = "cal-sched-table";
+  DAY_NAMES.forEach((name, i) => {
+    const col = document.createElement("div");
+    col.className = "cal-sched-day";
+    const blockHtml = byDay[i].length
+      ? byDay[i].map((b) => `<div class="cal-sched-block">${String(b.start_hour).padStart(2, "0")}:00–${String(b.end_hour).padStart(2, "0")}:00 ${escapeHtml(b.title)}</div>`).join("")
+      : '<div class="cal-sched-empty">Nothing scheduled</div>';
+    col.innerHTML = `<div class="cal-sched-day-head">${name}</div>${blockHtml}`;
+    table.appendChild(col);
+  });
+  drawer.innerHTML = "";
+  drawer.appendChild(table);
 }
 
 function renderCalDayPanel(dayTasks) {
@@ -651,6 +677,13 @@ function renderCalDayPanel(dayTasks) {
 }
 
 function initCalendar() {
+  document.getElementById("calSchedToggle").addEventListener("click", (e) => {
+    const drawer = document.getElementById("calSchedDrawer");
+    const nowOpen = drawer.classList.toggle("open");
+    e.target.textContent = (nowOpen ? "▴ Hide" : "▾ Show") + " weekly schedule for this week";
+    if (nowOpen) renderCalScheduleDrawer();
+  });
+
   document.getElementById("calPrevMonth").addEventListener("click", () => {
     state.calendar.monthDate = new Date(state.calendar.monthDate.getFullYear(), state.calendar.monthDate.getMonth() - 1, 1);
     loadCalendar();
@@ -748,6 +781,10 @@ function initTaskForm() {
    ========================================================== */
 async function loadSchedule() {
   const blocks = await apiGet("/schedule");
+  const weekStart = week_bounds_client(state.activeDate);
+  const markers = await apiGet(`/schedule/distractions?week_start=${weekStart}`);
+  const markerSet = new Set(markers.map((m) => `${m.day_of_week}-${m.hour}`));
+
   const grid = document.getElementById("schedGrid");
   grid.innerHTML = "";
 
@@ -777,10 +814,51 @@ async function loadSchedule() {
         cell.textContent = existing.title;
         cell.dataset.blockId = existing.id;
       }
+      if (markerSet.has(`${d}-${h}`)) {
+        const mark = document.createElement("span");
+        mark.className = "distraction-mark";
+        mark.textContent = "⚡";
+        mark.title = "A distraction was logged this hour this week";
+        cell.appendChild(mark);
+      }
       cell.addEventListener("click", () => handleCellClick(cell, d, h, existing));
       grid.appendChild(cell);
     }
   }
+}
+
+function week_bounds_client(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  const day = (d.getDay() + 6) % 7; // Monday = 0
+  d.setDate(d.getDate() - day);
+  return d.toISOString().slice(0, 10);
+}
+
+function initScheduleCopyPaste() {
+  const fromSel = document.getElementById("schedCopyFrom");
+  const toSel = document.getElementById("schedCopyTo");
+  DAY_NAMES.forEach((name, i) => {
+    fromSel.appendChild(new Option(name, i));
+    toSel.appendChild(new Option(name, i));
+  });
+  toSel.selectedIndex = 1;
+
+  document.getElementById("schedPasteBtn").addEventListener("click", async () => {
+    const fromDay = parseInt(fromSel.value);
+    const toDay = parseInt(toSel.value);
+    if (fromDay === toDay) {
+      alert("Pick two different days to copy between.");
+      return;
+    }
+    if (!confirm(`This replaces ${DAY_NAMES[toDay]}'s schedule with ${DAY_NAMES[fromDay]}'s. Continue?`)) return;
+    await apiPost("/schedule/copy-day", { from_day: fromDay, to_day: toDay });
+    loadSchedule();
+  });
+  // "Copy" button just focuses attention on the from-select; the actual
+  // work happens on Paste so nothing is overwritten by accident.
+  document.getElementById("schedCopyBtn").addEventListener("click", () => {
+    toSel.focus();
+  });
 }
 
 async function handleCellClick(cell, day, hour, existing) {
@@ -982,6 +1060,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initDateNav();
   initTheme();
   initCalendar();
+  initScheduleCopyPaste();
   initInboxForm();
   initTaskForm();
   initRecurringForm();

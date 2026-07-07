@@ -345,6 +345,97 @@ def delete_task(task_id):
 # SCHEDULE — weekly time-blocking (Calendly-style grid)
 # ------------------------------------------------------------------ #
 
+@app.route("/api/schedule/copy-day", methods=["POST"])
+def copy_schedule_day():
+    """Copy every recurring block from one weekday onto another, replacing
+    whatever was already on the target weekday."""
+    data = request.get_json(force=True)
+    from_day = int(data["from_day"])
+    to_day = int(data["to_day"])
+    conn = get_connection()
+    conn.execute("DELETE FROM schedule_blocks WHERE day_of_week = ? AND recurring = 1", (to_day,))
+    blocks = conn.execute(
+        "SELECT * FROM schedule_blocks WHERE day_of_week = ? AND recurring = 1", (from_day,)
+    ).fetchall()
+    for b in blocks:
+        conn.execute(
+            """INSERT INTO schedule_blocks (day_of_week, start_hour, end_hour, title, category, recurring)
+               VALUES (?, ?, ?, ?, ?, 1)""",
+            (to_day, b["start_hour"], b["end_hour"], b["title"], b["category"]),
+        )
+    conn.commit()
+    rows = conn.execute(
+        "SELECT * FROM schedule_blocks WHERE day_of_week = ? AND recurring = 1", (to_day,)
+    ).fetchall()
+    conn.close()
+    return jsonify({"copied": len(blocks), "blocks": rows_to_list(rows)})
+
+
+@app.route("/api/schedule/distractions", methods=["GET"])
+def schedule_distraction_markers():
+    """Hours actually flagged as a distraction in the Hour Log this week,
+    mapped onto day-of-week + hour so the weekly Schedule grid can show
+    where distractions have actually been happening."""
+    week_start = request.args.get("week_start", today_str())
+    monday, sunday = week_bounds(week_start)
+    dates = date_range(monday, sunday)
+    conn = get_connection()
+    markers = []
+    for i, d in enumerate(dates):
+        rows = conn.execute(
+            "SELECT hour, activity FROM time_logs WHERE log_date = ? AND is_distraction = 1", (d,)
+        ).fetchall()
+        for r in rows:
+            markers.append({"day_of_week": i, "hour": r["hour"], "date": d, "activity": r["activity"]})
+    conn.close()
+    return jsonify(markers)
+
+
+def compute_free_time(conn, date):
+    day_of_week = parse_date(date).weekday()
+    blocks = conn.execute(
+        "SELECT start_hour, end_hour FROM schedule_blocks WHERE day_of_week = ? AND recurring = 1",
+        (day_of_week,),
+    ).fetchall()
+    scheduled_hours = set()
+    for b in blocks:
+        scheduled_hours.update(range(b["start_hour"], b["end_hour"]))
+    logged_hours = {
+        r["hour"] for r in conn.execute("SELECT hour FROM time_logs WHERE log_date = ?", (date,)).fetchall()
+    }
+    busy_hours = scheduled_hours | logged_hours
+    free_hours = sorted(set(range(24)) - busy_hours)
+
+    ranges = []
+    start = prev = None
+    for h in free_hours:
+        if start is None:
+            start = h
+        elif h != prev + 1:
+            ranges.append((start, prev + 1))
+            start = h
+        prev = h
+    if start is not None:
+        ranges.append((start, prev + 1))
+
+    return {
+        "free_hour_count": len(free_hours),
+        "ranges": [f"{s:02d}:00\u2013{e:02d}:00" for s, e in ranges],
+    }
+
+
+@app.route("/api/freetime", methods=["GET"])
+def free_time():
+    """Hours in a day with no schedule block and nothing logged yet — the
+    genuinely open time in the day."""
+    date = request.args.get("date", today_str())
+    conn = get_connection()
+    result = compute_free_time(conn, date)
+    conn.close()
+    result["date"] = date
+    return jsonify(result)
+
+
 @app.route("/api/schedule", methods=["GET"])
 def get_schedule():
     conn = get_connection()
@@ -646,6 +737,8 @@ def dashboard_day():
         "SELECT COUNT(*) c FROM habit_logs WHERE log_date = ?", (date,)
     ).fetchone()["c"]
 
+    free_time = compute_free_time(conn, date)
+
     conn.close()
     return jsonify({
         "date": date,
@@ -660,6 +753,8 @@ def dashboard_day():
         "focus_sessions": len(focus_rows),
         "habits_total": len(habit_rows),
         "habits_done": habit_done,
+        "free_hour_count": free_time["free_hour_count"],
+        "free_ranges": free_time["ranges"],
     })
 
 
